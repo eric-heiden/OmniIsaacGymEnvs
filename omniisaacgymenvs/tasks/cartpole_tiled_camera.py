@@ -31,11 +31,44 @@ from omniisaacgymenvs.tasks.base.rl_task import RLTask
 from omniisaacgymenvs.robots.articulations.cartpole import Cartpole
 
 from omni.isaac.core.articulations import ArticulationView
+from omni.isaac.core.prims import RigidPrimView
+
 from omni.isaac.core.utils.prims import get_prim_at_path
+
+import omniisaacgymenvs.tasks.cartpole_tiled as cartpole_tiled
+
+
+
 
 import numpy as np
 import torch
 import math
+import warp as wp
+import warp.torch
+
+@wp.kernel
+def update_vbo(
+    pole_world_positions: wp.array(dtype=wp.float32),
+    pole_world_orientations: wp.array(dtype=wp.float32),
+    cart_world_positions: wp.array(dtype=wp.float32),
+    cart_world_orientations: wp.array(dtype=wp.float32),
+    num_envs : int,
+    # outputs
+    vbo_positions: wp.array(dtype=wp.vec4),
+    vbo_orientations: wp.array(dtype=wp.quat)):
+
+    tid = wp.tid()
+    #shuffle quaternion layout w,x,y,z
+    cart_pos = wp.vec4(cart_world_positions[tid*3],cart_world_positions[tid*3+1],cart_world_positions[tid*3+2], 0.0)
+    cart_orn = wp.quat(cart_world_orientations[tid*4+1],cart_world_orientations[tid*4+2],cart_world_orientations[tid*4+3],cart_world_orientations[tid*4+0])
+    pole_pos = wp.vec4(pole_world_positions[tid*3],pole_world_positions[tid*3+1],pole_world_positions[tid*3+2], 0.0)
+    pole_orn = wp.quat(pole_world_orientations[tid*4+1],pole_world_orientations[tid*4+2],pole_world_orientations[tid*4+3],pole_world_orientations[tid*4+0])
+    
+    #rail indices start at 0, cart indices start at num_envs, pole indices start at num_envs*2
+    vbo_positions[num_envs+tid] = cart_pos
+    vbo_orientations[num_envs+tid] = cart_orn
+    vbo_positions[2*num_envs+tid] = pole_pos
+    vbo_orientations[2*num_envs+tid] = pole_orn
 
 
 class CartpoleTiledCameraTask(RLTask):
@@ -53,6 +86,7 @@ class CartpoleTiledCameraTask(RLTask):
 
         self._num_envs = self._task_cfg["env"]["numEnvs"]
         self._env_spacing = self._task_cfg["env"]["envSpacing"]
+        print("self._env_spacing=",self._env_spacing)
         self._cartpole_positions = torch.tensor([0.0, 0.0, 2.0])
 
         self._reset_dist = self._task_cfg["env"]["resetDist"]
@@ -62,14 +96,28 @@ class CartpoleTiledCameraTask(RLTask):
         self._num_observations = 4
         self._num_actions = 1
 
+        
+
         RLTask.__init__(self, name, env)
+
+        self._tiled_cartpoles = cartpole_tiled.CartpoleTest(num_envs = self._num_envs , enable_tiled = True, use_matplot_lib = True)
+        #self._tiled_cartpoles = cartpole_tiled.CartpoleTest(num_envs = self._num_envs , enable_tiled = False, use_matplot_lib = False)
+
         return
 
     def set_up_scene(self, scene) -> None:
         self.get_cartpole()
         super().set_up_scene(scene)
         self._cartpoles = ArticulationView(prim_paths_expr="/World/envs/.*/Cartpole", name="cartpole_view", reset_xform_properties=False)
+        self._poles_view = RigidPrimView(prim_paths_expr="/World/envs/.*/Cartpole/pole", name="pole_view", reset_xform_properties=False)
+        self._carts_view = RigidPrimView(prim_paths_expr="/World/envs/.*/Cartpole/cart", name="cart_view", reset_xform_properties=False)
+        self._rails_view = RigidPrimView(prim_paths_expr="/World/envs/.*/Cartpole/rail", name="rail_view", reset_xform_properties=False)
+
         scene.add(self._cartpoles)
+        scene.add(self._poles_view)
+        scene.add(self._carts_view)
+        scene.add(self._rails_view)
+
         return
 
     def get_cartpole(self):
@@ -77,7 +125,47 @@ class CartpoleTiledCameraTask(RLTask):
         # applies articulation settings from the task configuration yaml file
         self._sim_config.apply_articulation_settings("Cartpole", get_prim_at_path(cartpole.prim_path), self._sim_config.parse_actor_config("Cartpole"))
 
+    def sync_transforms(self, pole_world_positions, pole_world_orientations, cart_world_positions, cart_world_orientations):
+        vbo = self._tiled_cartpoles.viz.opengl_app.cuda_map_vbo()
+    
+        num_instances = self._num_envs*3
+        vbo_positions = wp.array(
+        ptr=vbo.positions, dtype=wp.vec4, shape=(num_instances,),
+        length=num_instances, capacity=num_instances,
+        device="cuda", owner=False, ndim=1)
+        vbo_orientations = wp.array(
+        ptr=vbo.orientations, dtype=wp.quat, shape=(num_instances,),
+        length=num_instances, capacity=num_instances,
+        device="cuda", owner=False, ndim=1)
+
+        
+        wp_pole_world_positions = warp.from_torch(pole_world_positions.flatten())
+        wp_pole_world_orientations = warp.from_torch(pole_world_orientations.flatten())
+        wp_cart_world_positions = warp.from_torch(cart_world_positions.flatten())
+        wp_cart_world_orientations = warp.from_torch(cart_world_orientations.flatten())
+
+        wp.launch(
+        update_vbo,
+        dim=self.num_envs,#not num_instances!
+        inputs=[
+            wp_pole_world_positions,
+            wp_pole_world_orientations,
+            wp_cart_world_positions,
+            wp_cart_world_orientations,
+            self._num_envs,
+        ],
+        outputs=[
+            vbo_positions,
+            vbo_orientations,
+        ],
+        device="cuda")
+
+        self._tiled_cartpoles.viz.opengl_app.cuda_unmap_vbo()
+
+
     def get_observations(self) -> dict:
+        
+
         dof_pos = self._cartpoles.get_joint_positions(clone=False)
         dof_vel = self._cartpoles.get_joint_velocities(clone=False)
 
@@ -90,6 +178,14 @@ class CartpoleTiledCameraTask(RLTask):
         self.obs_buf[:, 1] = cart_vel
         self.obs_buf[:, 2] = pole_pos
         self.obs_buf[:, 3] = pole_vel
+
+        rails_world_positions, rails_world_orientations = self._rails_view.get_world_poses(clone=False)
+        print("rails_world_positions=",rails_world_positions)
+        poles_world_positions, poles_world_orientations = self._poles_view.get_world_poses(clone=False)
+        cart_world_positions, cart_world_orientations = self._carts_view.get_world_poses(clone=False)
+        
+        self.sync_transforms(poles_world_positions, poles_world_orientations, cart_world_positions, cart_world_orientations)
+        self._tiled_cartpoles.update_observations()
 
         observations = {
             self._cartpoles.name: {
