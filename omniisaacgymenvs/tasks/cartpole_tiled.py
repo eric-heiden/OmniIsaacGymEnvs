@@ -61,13 +61,15 @@ class CartpoleTest:
             
             num_actors=self.num_envs
             
-            self.num_stacked_channels = self.camera_channels + self.camera_image_stack*self.camera_channels
+            #self.num_stacked_channels = self.camera_channels + self.camera_image_stack*self.camera_channels
             #self.obs_space = spaces.Box(np.ones((self.camera_height, self.camera_width, self.num_stacked_channels)) * -np.Inf,
             #                        np.ones((self.camera_height, self.camera_width, self.num_stacked_channels)) * np.Inf)
 
+            #self.obs_buf = torch.zeros(
+            #    (self.num_envs, self.camera_height, self.camera_width, self.num_stacked_channels), device=self.device, dtype=torch.float)
             self.obs_buf = torch.zeros(
-                (self.num_envs, self.camera_height, self.camera_width, self.num_stacked_channels), device=self.device, dtype=torch.float)
-            print("self.obs_buf.shape=",self.obs_buf.shape)
+                (self.num_envs, self.camera_height* self.camera_width* self.camera_channels), device=self.device, dtype=torch.float)
+            #print("self.obs_buf.shape=",self.obs_buf.shape)
      
             if self.enable_tiled:
               window_type = 2
@@ -124,9 +126,9 @@ class CartpoleTest:
                   viz_instances = []
                   for pair in pairs:
                     viz_instances.append(pair.visual_instance)
-                  #print("viz_instances=",viz_instances)
+                  print("viz_instances=",viz_instances)
                   tile.visual_instances = viz_instances#[t, 512+t, 1024+t]
-                  #print("tile.visual_instances=",tile.visual_instances)
+                  print("tile.visual_instances=",tile.visual_instances)
                   cam = self.viz.opengl_app.renderer.get_active_camera()
                   tile.projection_matrix = cam.get_camera_projection_matrix()
                   tile.view_matrix = cam.get_camera_view_matrix()
@@ -143,8 +145,8 @@ class CartpoleTest:
             cam.set_camera_pitch(0)#-30)
             cam.set_camera_yaw(90)#-30)
             cam.set_camera_target_position(0.,0.,2.)
-            if not self.enable_tiled:
-              self.viz.opengl_app.renderer.write_transforms()
+            #if not self.enable_tiled:
+            self.viz.opengl_app.renderer.write_transforms()
             self.viz.opengl_app.renderer.set_camera(cam)
     def sync_transforms_cpu(self, rb_transforms):
         skip = 0
@@ -155,12 +157,12 @@ class CartpoleTest:
         self.viz.sync_visual_transforms(self.all_instances, rb_transforms, skip, sim_spacing,apply_visual_offset=True)
 
 
-    def update_observations(self):
+    def update_observations(self, camera_positions=None):
         if self.use_camera:
           import time
           start_time = time.time()
           
-          
+          #print("len(camera_positions)=",len(camera_positions))
           if use_cuda_interop:
             self.viz.opengl_app.enable_render_to_texture(self.width, self.height)
           
@@ -173,8 +175,21 @@ class CartpoleTest:
               #self.max_x
               for tile_index in range (self.num_envs):
                   tile = self.tiles[tile_index]
-                  tile_index+=1
-                  tile.view_matrix = cam.get_camera_view_matrix()
+                  
+                  if camera_positions is None:
+                    tile.view_matrix = cam.get_camera_view_matrix()
+                  else:
+                    cam_target = g.TinyVector3f(camera_positions[tile_index][0],
+                                                camera_positions[tile_index][1],
+                                                camera_positions[tile_index][2])
+                    cam_up = g.TinyVector3f(0. ,0., 1.)
+                    cam_pos = g.TinyVector3f(camera_positions[tile_index][0],
+                                                camera_positions[tile_index][1]-1.0,
+                                                camera_positions[tile_index][2])
+
+                    view_mat = g.compute_camera_view_matrix(cam_pos, cam_target, cam_up)
+                    tile.view_matrix = view_mat
+
                   tile.viewport_dims=[x*self.tile_width,y*self.tile_height,self.tile_width, self.tile_height]
                   x+=1
                   if x>=self.max_x:
@@ -241,27 +256,31 @@ class CartpoleTest:
             ftensor = ftensor.swapaxes(1,2)
             ftensor = ftensor.reshape(self.max_x*self.max_x, self.tile_width*self.tile_height*4)
             ftensor = ftensor[:self.num_envs,]
-              
-            ftensor = ftensor.reshape(self.max_x*self.max_x, self.tile_width,self.tile_height,4)
+            #print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
+            #print("ftensor.shape=",ftensor.shape)
+            self.obs_buf = ftensor 
+            #ftensor = ftensor.reshape(self.max_x*self.max_x, self.tile_width,self.tile_height,4)
               
             #print("ftensor.shape=", ftensor.shape)
             #self.obs_buf = ftensor
           
             #self.gym.render_all_camera_sensors(self.sim)
             #self.gym.start_access_image_tensors(self.sim)
-            stk = self.camera_image_stack
+            #stk = self.camera_image_stack
             #print("stk=", stk)
-            if stk > 1:
-                # move the previous (stack-1) frames 1 step forward in the buffer
-                self.obs_buf[:, :, :, (1) * self.camera_channels: (stk) * self.camera_channels]
-                self.obs_buf[:, :, :, (0) * self.camera_channels: (stk-1) * self.camera_channels]
+            #if stk > 1:
+            #    # move the previous (stack-1) frames 1 step forward in the buffer
+            #    self.obs_buf[:, :, :, (1) * self.camera_channels: (stk) * self.camera_channels]
+            #    self.obs_buf[:, :, :, (0) * self.camera_channels: (stk-1) * self.camera_channels]
                   
             #print("self.obs_buf.shape=",self.obs_buf.shape)
             #print("ftensor.shape=", ftensor.shape)
             #print("self.obs_buf.shape=", self.obs_buf.shape)
             
-            self.obs_buf[:, :, :, 0:self.camera_channels] = ftensor
-              
+
+            #self.obs_buf[:, :, :, 0:self.camera_channels] = ftensor
+            #print("self.camera_channels=",self.camera_channels)
+            #print("self.obs_buf.shape=", self.obs_buf.shape)
             for id in np.arange(self.num_envs):
                 #    camera_gpu_tensor = self.camera_tensors[id][:, :, 0:self.camera_channels].clone()
                 #    #if (id==0):
@@ -284,7 +303,7 @@ class CartpoleTest:
 
 
 if __name__ == '__main__':
-  cam = CartpoleTest(num_envs = 400, enable_tiled = True, use_matplot_lib = True)
+  cam = CartpoleTest(num_envs = 400, enable_tiled = False, use_matplot_lib = False)
 
   npz_data = np.load("cartpole_trans.npz")
   all_rb = npz_data['a']

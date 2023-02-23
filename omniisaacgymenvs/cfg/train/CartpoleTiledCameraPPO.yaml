@@ -21,6 +21,7 @@ params:
           name: const_initializer
           val: 0
         fixed_sigma: True
+    
     mlp:
       units: [32, 32]
       activation: elu
@@ -53,7 +54,7 @@ params:
     lr_schedule: adaptive
     kl_threshold: 0.008
     score_to_win: 20000
-    max_epochs: ${resolve_default:100,${....max_iterations}}
+    max_epochs: ${resolve_default:10000,${....max_iterations}}
     save_best_after: 50
     save_frequency: 25
     grad_norm: 1.0
@@ -61,7 +62,7 @@ params:
     truncate_grads: True
     e_clip: 0.2
     horizon_length: 16
-    minibatch_size: 1024
+    minibatch_size: 1600
     mini_epochs: 8
     critic_coef: 4
     clip_value: True
