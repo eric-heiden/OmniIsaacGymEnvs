@@ -4,6 +4,9 @@ import math
 import torch
 import numpy as np
 use_cv2 = False
+if use_cv2:
+  import cv2
+
 #from omni.isaac.core.utils.nucleus import get_assets_root_path
 #assets_root_path = get_assets_root_path()
 #if assets_root_path is None:
@@ -35,7 +38,8 @@ class CartpoleTest:
           self.ax = self.plt.gca()
         else:
           self.use_matplot_lib = False
- 
+
+        self.counter=0 
         if self.camera_type == "rgb":
             self.camera_channels = 3
         elif self.camera_type == "grey":
@@ -61,14 +65,19 @@ class CartpoleTest:
             
             num_actors=self.num_envs
             
-            #self.num_stacked_channels = self.camera_channels + self.camera_image_stack*self.camera_channels
+            self.camera_image_stack=1
+            self.num_stacked_channels = self.camera_channels + self.camera_image_stack*self.camera_channels
             #self.obs_space = spaces.Box(np.ones((self.camera_height, self.camera_width, self.num_stacked_channels)) * -np.Inf,
             #                        np.ones((self.camera_height, self.camera_width, self.num_stacked_channels)) * np.Inf)
 
             #self.obs_buf = torch.zeros(
             #    (self.num_envs, self.camera_height, self.camera_width, self.num_stacked_channels), device=self.device, dtype=torch.float)
             self.obs_buf = torch.zeros(
-                (self.num_envs, self.camera_height* self.camera_width* self.camera_channels), device=self.device, dtype=torch.float)
+                (self.num_envs, self.camera_height, self.camera_width, self.num_stacked_channels), device=self.device, dtype=torch.float)
+            print("####################################self.obs_buf.shape=",self.obs_buf.shape)
+            
+            #self.obs_buf = torch.zeros(
+            #    (self.num_envs, self.camera_height* self.camera_width* self.camera_channels), device=self.device, dtype=torch.float)
             #print("self.obs_buf.shape=",self.obs_buf.shape)
      
             if self.enable_tiled:
@@ -141,10 +150,10 @@ class CartpoleTest:
 
             cam = g.TinyCamera()
             cam.set_camera_up_axis(2)
-            cam.set_camera_distance(3)
+            cam.set_camera_distance(2)
             cam.set_camera_pitch(0)#-30)
             cam.set_camera_yaw(90)#-30)
-            cam.set_camera_target_position(0.,0.,2.)
+            cam.set_camera_target_position(0.,0.,0.5)
             #if not self.enable_tiled:
             self.viz.opengl_app.renderer.write_transforms()
             self.viz.opengl_app.renderer.set_camera(cam)
@@ -157,7 +166,7 @@ class CartpoleTest:
         self.viz.sync_visual_transforms(self.all_instances, rb_transforms, skip, sim_spacing,apply_visual_offset=True)
 
 
-    def update_observations(self, camera_positions=None):
+    def update_observations(self, write_transforms, camera_positions=None):
         if self.use_camera:
           import time
           start_time = time.time()
@@ -184,7 +193,7 @@ class CartpoleTest:
                                                 camera_positions[tile_index][2])
                     cam_up = g.TinyVector3f(0. ,0., 1.)
                     cam_pos = g.TinyVector3f(camera_positions[tile_index][0],
-                                                camera_positions[tile_index][1]-1.0,
+                                                camera_positions[tile_index][1]-1.5,
                                                 camera_positions[tile_index][2])
 
                     view_mat = g.compute_camera_view_matrix(cam_pos, cam_target, cam_up)
@@ -195,16 +204,13 @@ class CartpoleTest:
                   if x>=self.max_x:
                     x=0
                     y+=1
-              write_transforms = False
-              if self.once:
-                write_transforms = True
-                self.once = False
+              
               self.viz.render_tiled(self.tiles, do_swap_buffer = False, render_segmentation_mask=False, write_transforms=write_transforms)
           else:
-            #self.viz.render(do_swap_buffer=False, render_segmentation_mask=False, write_transforms=False)
-            up_axis = 2
-            self.viz.opengl_app.renderer.update_camera(up_axis)
-            self.viz.opengl_app.renderer.render_scene()
+            self.viz.render(do_swap_buffer=False, render_segmentation_mask=False, write_transforms=write_transforms)
+            #up_axis = 2
+            #self.viz.opengl_app.renderer.update_camera(up_axis)
+            #self.viz.opengl_app.renderer.render_scene()
             #self.viz.opengl_app.swap_buffer()
           
           ct = time.time()
@@ -249,7 +255,8 @@ class CartpoleTest:
           #print("sq.shape=",sq.shape)
           if use_image_observation:
             #this copy/reshaping is sub-optimal, need a person with some pytorch-fu
-            ftensor = self.ttensor.type(torch.float32)*255.
+            #ftensor = self.ttensor.type(torch.float32)*255.
+            ftensor = self.ttensor.type(torch.float32)
             ftensor  = torch.reshape(ftensor, (self.height, self.width, 4))
             #ftensor = torch.flipud(ftensor)
             ftensor = ftensor.reshape(self.max_x, self.tile_width, self.max_x, self.tile_height, 4)
@@ -258,39 +265,41 @@ class CartpoleTest:
             ftensor = ftensor[:self.num_envs,]
             #print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
             #print("ftensor.shape=",ftensor.shape)
-            self.obs_buf = ftensor 
-            #ftensor = ftensor.reshape(self.max_x*self.max_x, self.tile_width,self.tile_height,4)
-              
+            ftensor = ftensor.reshape(self.max_x*self.max_x, self.tile_width,self.tile_height,4)
+            #self.obs_buf = ftensor  
             #print("ftensor.shape=", ftensor.shape)
             #self.obs_buf = ftensor
           
             #self.gym.render_all_camera_sensors(self.sim)
             #self.gym.start_access_image_tensors(self.sim)
-            #stk = self.camera_image_stack
+            stk = self.camera_image_stack
             #print("stk=", stk)
-            #if stk > 1:
-            #    # move the previous (stack-1) frames 1 step forward in the buffer
-            #    self.obs_buf[:, :, :, (1) * self.camera_channels: (stk) * self.camera_channels]
-            #    self.obs_buf[:, :, :, (0) * self.camera_channels: (stk-1) * self.camera_channels]
+            if stk > 0:
+                # move the previous (stack-1) frames 1 step forward in the buffer
+                self.obs_buf[:, :, :, self.camera_channels] = self.obs_buf[:, :, :, 0]
+                #self.obs_buf[:, :, :, (1) * self.camera_channels: (stk) * self.camera_channels] 
+                #self.obs_buf[:, :, :, (0) * self.camera_channels: (stk-1) * self.camera_channels]
                   
             #print("self.obs_buf.shape=",self.obs_buf.shape)
             #print("ftensor.shape=", ftensor.shape)
             #print("self.obs_buf.shape=", self.obs_buf.shape)
             
 
-            #self.obs_buf[:, :, :, 0:self.camera_channels] = ftensor
+            self.obs_buf[:, :, :, 0:self.camera_channels] = ftensor
             #print("self.camera_channels=",self.camera_channels)
             #print("self.obs_buf.shape=", self.obs_buf.shape)
-            for id in np.arange(self.num_envs):
+            self.counter += 1
+            if self.counter == 1:
+              for id in np.arange(self.num_envs):
                 #    camera_gpu_tensor = self.camera_tensors[id][:, :, 0:self.camera_channels].clone()
                 #    #if (id==0):
                 #    #  print("camera_gpu_tensor=",camera_gpu_tensor.float())
                 #    #print(camera_gpu_tensor.shape)
                 #    self.obs_buf[id, :, :, 0:self.camera_channels] = camera_gpu_tensor.float()
                 if use_cv2:
-                   if id == 2:
-                     #cv2.imshow("image", self.obs_buf[id, :, :, 0:3].cpu().numpy() / 255.)
-                     cv2.imshow("image", self.obs_buf[id, :, :, 0:3].cpu().numpy())
+                   if id == 13:
+                     cv2.imshow("image", self.obs_buf[id, :, :, 0:3].cpu().numpy() )
+                     #cv2.imshow("image", self.obs_buf[id, :, :, 0:3].cpu().numpy())
                      cv2.waitKey(1000)
 
         else:
@@ -303,7 +312,7 @@ class CartpoleTest:
 
 
 if __name__ == '__main__':
-  cam = CartpoleTest(num_envs = 400, enable_tiled = False, use_matplot_lib = False)
+  cam = CartpoleTest(num_envs = 400, enable_tiled = True, use_matplot_lib = True)
 
   npz_data = np.load("cartpole_trans.npz")
   all_rb = npz_data['a']
@@ -317,5 +326,5 @@ if __name__ == '__main__':
     rb.resize(cam.num_envs,21)
     print("rb.shape=", rb.shape)
     cam.sync_transforms_cpu(rb)
-    cam.update_observations()
+    cam.update_observations(write_transforms=True)
 
