@@ -105,21 +105,16 @@ class CartpoleTiledCameraTask(RLTask):
 
         self._tiled_cartpoles = cartpole_tiled.CartpoleTest(num_envs = self._num_envs , enable_tiled = True, use_matplot_lib = False)
 
-        self._use_camera = True
-        if self._use_camera:
-            self._num_observations = self._tiled_cartpoles.camera_height , self._tiled_cartpoles.camera_width ,  2*self._tiled_cartpoles.camera_channels 
-            #self._zero_obs = torch.zeros(self.num_envs*self._num_observations, device="cuda")
-            self._zero_pos_vel = torch.zeros(self.num_envs*2, device="cuda")
-            self._zero_pos_vel = torch.reshape(self._zero_pos_vel,(self._num_envs,2))
-        else:
-            self._num_observations = 4
-        #print("self._num_observations=",self._num_observations)
-        
-        self.obs_buf2 = torch.zeros((self._num_envs, 4), device="cuda", dtype=torch.float)
-        self.obs_buf = self._tiled_cartpoles.obs_buf
+        self._num_observations = self._tiled_cartpoles.camera_height , self._tiled_cartpoles.camera_width ,  2*self._tiled_cartpoles.camera_channels
         self._num_actions = 1
 
-        RLTask.__init__(self, name, env)
+        RLTask.__init__(self, name, env, create_obs_buf=False)
+
+        self._zero_pos_vel = torch.zeros(self.num_envs*2, device="cuda")
+        self._zero_pos_vel = torch.reshape(self._zero_pos_vel,(self._num_envs,2))
+        
+        self.pos_vel_buf = torch.zeros((self._num_envs, 4), device="cuda", dtype=torch.float)
+        self.obs_buf = self._tiled_cartpoles.obs_buf
 
         return
 
@@ -197,32 +192,25 @@ class CartpoleTiledCameraTask(RLTask):
         pole_vel = dof_vel[:, self._pole_dof_idx]
 
         
-        self.obs_buf2[:, 0] = cart_pos
-        self.obs_buf2[:, 1] = cart_vel
-        self.obs_buf2[:, 2] = pole_pos
-        self.obs_buf2[:, 3] = pole_vel
+        self.pos_vel_buf[:, 0] = cart_pos
+        self.pos_vel_buf[:, 1] = cart_vel
+        self.pos_vel_buf[:, 2] = pole_pos
+        self.pos_vel_buf[:, 3] = pole_vel
 
-        if self._use_camera:
-            rails_world_positions, rails_world_orientations = self._rails_view.get_world_poses(clone=False)
-            poles_world_positions, poles_world_orientations = self._poles_view.get_world_poses(clone=False)
-            cart_world_positions, cart_world_orientations = self._carts_view.get_world_poses(clone=False)
-            
-            self.sync_transforms(poles_world_positions, poles_world_orientations, cart_world_positions, cart_world_orientations, rails_world_positions)
-            self._tiled_cartpoles.update_observations(write_transforms=False)
-            self.obs_buf = self._tiled_cartpoles.obs_buf
-            observations = {
-                self._cartpoles.name: {
-                    #"obs_buf": self._tiled_cartpoles.obs_buf
-                    #"obs_buf": self._zero_obs
-                    "obs_buf": self.obs_buf
-                }
+        rails_world_positions, rails_world_orientations = self._rails_view.get_world_poses(clone=False)
+        poles_world_positions, poles_world_orientations = self._poles_view.get_world_poses(clone=False)
+        cart_world_positions, cart_world_orientations = self._carts_view.get_world_poses(clone=False)
+        
+        self.sync_transforms(poles_world_positions, poles_world_orientations, cart_world_positions, cart_world_orientations, rails_world_positions)
+        self._tiled_cartpoles.update_observations(write_transforms=False)
+        self.obs_buf = self._tiled_cartpoles.obs_buf
+        observations = {
+            self._cartpoles.name: {
+                #"obs_buf": self._tiled_cartpoles.obs_buf
+                #"obs_buf": self._zero_obs
+                "obs_buf": self.obs_buf
             }
-        else:
-            observations = {
-                self._cartpoles.name: {
-                    "obs_buf": self.obs_buf2
-                }
-            }
+        }
         return observations
 
     def pre_physics_step(self, actions) -> None:
@@ -263,8 +251,7 @@ class CartpoleTiledCameraTask(RLTask):
         self.reset_buf[env_ids] = 0
         self.progress_buf[env_ids] = 0
         
-        if self._use_camera:
-            self.obs_buf[env_ids, :, :, :] = 0.0
+        self.obs_buf[env_ids, :, :, :] = 0.0
 
 
     def post_reset(self):
@@ -275,10 +262,10 @@ class CartpoleTiledCameraTask(RLTask):
         self.reset_idx(indices)
 
     def calculate_metrics(self) -> None:
-        cart_pos = self.obs_buf2[:, 0]
-        cart_vel = self.obs_buf2[:, 1]
-        pole_angle = self.obs_buf2[:, 2]
-        pole_vel = self.obs_buf2[:, 3]
+        cart_pos = self.pos_vel_buf[:, 0]
+        cart_vel = self.pos_vel_buf[:, 1]
+        pole_angle = self.pos_vel_buf[:, 2]
+        pole_vel = self.pos_vel_buf[:, 3]
 
         reward = 1.0 - pole_angle * pole_angle - 0.01 * torch.abs(cart_vel) - 0.005 * torch.abs(pole_vel)
         reward = torch.where(torch.abs(cart_pos) > self._reset_dist, torch.ones_like(reward) * -2.0, reward)
@@ -288,8 +275,8 @@ class CartpoleTiledCameraTask(RLTask):
         self.rew_buf[:] = reward
 
     def is_done(self) -> None:
-        cart_pos = self.obs_buf2[:, 0]
-        pole_pos = self.obs_buf2[:, 2]
+        cart_pos = self.pos_vel_buf[:, 0]
+        pole_pos = self.pos_vel_buf[:, 2]
 
         resets = torch.where(torch.abs(cart_pos) > self._reset_dist, 1, 0)
         resets = torch.where(torch.abs(pole_pos) > math.pi / 2, 1, resets)

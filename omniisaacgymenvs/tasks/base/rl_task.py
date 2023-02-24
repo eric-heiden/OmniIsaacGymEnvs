@@ -49,7 +49,7 @@ class RLTask(BaseTask):
         cloning environments, and data collection for RL algorithms.
     """
 
-    def __init__(self, name, env, offset=None) -> None:
+    def __init__(self, name, env, offset=None, create_obs_buf=True) -> None:
 
         """ Initializes RL parameters, cloner object, and buffers.
 
@@ -60,7 +60,7 @@ class RLTask(BaseTask):
         """
 
         super().__init__(name=name, offset=offset)
-
+        self.create_obs_buf = create_obs_buf
         self.test = self._cfg["test"]
         self._device = self._cfg["sim_device"]
         self._dr_randomizer = Randomizer(self._sim_config)
@@ -102,7 +102,8 @@ class RLTask(BaseTask):
         """ Prepares torch buffers for RL data collection."""
 
         # prepare tensors
-        self.obs_buf2 = torch.zeros((self._num_envs, 4), device=self._device, dtype=torch.float)
+        if self.create_obs_buf:
+          self.obs_buf = torch.zeros((self._num_envs, self.num_observations), device=self._device, dtype=torch.float)
         self.states_buf = torch.zeros((self._num_envs, self.num_states), device=self._device, dtype=torch.float)
         self.rew_buf = torch.zeros(self._num_envs, device=self._device, dtype=torch.float)
         self.reset_buf = torch.ones(self._num_envs, device=self._device, dtype=torch.long)
