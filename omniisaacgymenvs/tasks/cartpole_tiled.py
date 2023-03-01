@@ -312,7 +312,7 @@ class CartpoleTest:
 
 
 if __name__ == '__main__':
-  cam = CartpoleTest(num_envs = 400, enable_tiled = True, use_matplot_lib = True)
+  cam = CartpoleTest(num_envs = 400, enable_tiled = False, use_matplot_lib = False)
 
   npz_data = np.load("cartpole_trans.npz")
   all_rb = npz_data['a']

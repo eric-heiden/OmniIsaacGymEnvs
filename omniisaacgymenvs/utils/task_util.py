@@ -36,6 +36,7 @@ def initialize_task(config, env, init_sim=True):
     from omniisaacgymenvs.tasks.cartpole import CartpoleTask
     from omniisaacgymenvs.tasks.cartpole_tiled_camera import CartpoleTiledCameraTask
     from omniisaacgymenvs.tasks.franka_cabinet import FrankaCabinetTask
+    from omniisaacgymenvs.tasks.franka_cabinet_tiled_camera import FrankaCabinetTiledCameraTask
     from omniisaacgymenvs.tasks.humanoid import HumanoidLocomotionTask
     from omniisaacgymenvs.tasks.ingenuity import IngenuityTask
     from omniisaacgymenvs.tasks.quadcopter import QuadcopterTask
@@ -52,6 +53,7 @@ def initialize_task(config, env, init_sim=True):
         "Cartpole": CartpoleTask,
         "CartpoleTiledCamera": CartpoleTiledCameraTask,
         "FrankaCabinet": FrankaCabinetTask,
+        "FrankaCabinetTiledCamera": FrankaCabinetTiledCameraTask,
         "Humanoid": HumanoidLocomotionTask,
         "Ingenuity": IngenuityTask,
         "Quadcopter": QuadcopterTask,
