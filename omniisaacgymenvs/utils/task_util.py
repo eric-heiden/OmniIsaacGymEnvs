@@ -28,6 +28,9 @@
 
 
 def initialize_task(config, env, init_sim=True):
+    from .config_utils.sim_config import SimConfig
+    sim_config = SimConfig(config)
+
     from omniisaacgymenvs.tasks.allegro_hand import AllegroHandTask
     from omniisaacgymenvs.tasks.ant import AntLocomotionTask
     from omniisaacgymenvs.tasks.anymal import AnymalTask
@@ -35,6 +38,7 @@ def initialize_task(config, env, init_sim=True):
     from omniisaacgymenvs.tasks.ball_balance import BallBalanceTask
     from omniisaacgymenvs.tasks.cartpole import CartpoleTask
     from omniisaacgymenvs.tasks.cartpole_tiled_camera import CartpoleTiledCameraTask
+    from omniisaacgymenvs.tasks.factory.factory_task_nut_bolt_pick import FactoryTaskNutBoltPick
     from omniisaacgymenvs.tasks.franka_cabinet import FrankaCabinetTask
     from omniisaacgymenvs.tasks.franka_cabinet_tiled_camera import FrankaCabinetTiledCameraTask
     from omniisaacgymenvs.tasks.humanoid import HumanoidLocomotionTask
@@ -52,6 +56,7 @@ def initialize_task(config, env, init_sim=True):
         "BallBalance": BallBalanceTask,
         "Cartpole": CartpoleTask,
         "CartpoleTiledCamera": CartpoleTiledCameraTask,
+        "FactoryTaskNutBoltPick": FactoryTaskNutBoltPick,
         "FrankaCabinet": FrankaCabinetTask,
         "FrankaCabinetTiledCamera": FrankaCabinetTiledCameraTask,
         "Humanoid": HumanoidLocomotionTask,
@@ -62,9 +67,6 @@ def initialize_task(config, env, init_sim=True):
         "ShadowHandOpenAI_FF": ShadowHandTask,
         "ShadowHandOpenAI_LSTM": ShadowHandTask,
     }
-
-    from .config_utils.sim_config import SimConfig
-    sim_config = SimConfig(config)
 
     cfg = sim_config.config
     task = task_map[cfg["task_name"]](

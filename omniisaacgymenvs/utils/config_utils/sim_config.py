@@ -46,12 +46,19 @@ class SimConfig():
         if self._config["test"] == True:
             self._sim_params["enable_scene_query_support"] = True
 
-        if self._config["headless"] == True and not self._sim_params["enable_cameras"]:
+        from omni.isaac.core.utils.extensions import enable_extension
+        if self._config["headless"] == True and not self._sim_params["enable_cameras"] and not self._config["enable_livestream"]:
             self._sim_params["use_flatcache"] = False
             self._sim_params["enable_viewport"] = False
+        else:
+            self._sim_params["enable_viewport"] = True
+            enable_extension("omni.kit.viewport.bundle")
+        enable_extension("omni.replicator.isaac")
 
         if self._sim_params["disable_contact_processing"]:
             carb.settings.get_settings().set_bool("/physics/disableContactProcessing", True)
+
+        carb.settings.get_settings().set_bool("/physics/physxDispatcher", True)
 
     def _parse_config(self):
         # general sim parameter
@@ -257,17 +264,24 @@ class SimConfig():
         if self._sim_params["substeps"] > 1:
             physx_rb_api.GetRetainAccelerationsAttr().Set(True)
 
-    def add_fixed_base(self, name, prim, cfg, value=None):
-        # add fixed root joint for rigid body
+    def make_kinematic(self, name, prim, cfg, value=None):
+        # make rigid body kinematic (fixed base and no collision)
         from pxr import UsdPhysics, PhysxSchema
         stage = omni.usd.get_context().get_stage()
         if value is None:
-            value = self._get_actor_config_value(name, "fixed_base")
+            value = self._get_actor_config_value(name, "make_kinematic")
         if value:
-            root_joint_path = f"{prim.GetPath()}_fixedBaseRootJoint"
-            joint = UsdPhysics.Joint.Define(stage, root_joint_path)
-            joint.CreateBody1Rel().SetTargets([prim.GetPath()])
-            self.apply_articulation_settings(name, joint.GetPrim(), cfg, force_articulation=True)
+            # parse through all children prims
+            prims = [prim]
+            while len(prims) > 0:
+                cur_prim = prims.pop(0)
+                rb = UsdPhysics.RigidBodyAPI.Get(stage, cur_prim.GetPath())
+
+                if rb:
+                    rb.CreateKinematicEnabledAttr().Set(True)
+
+                children_prims = cur_prim.GetPrim().GetChildren()
+                prims = prims + children_prims
 
     def set_articulation_position_iteration(self, name, prim, value=None):
         arti_api = self._get_physx_articulation_api(prim)
@@ -312,7 +326,7 @@ class SimConfig():
 
         # if it's a body in an articulation, it's handled at articulation root
         if not is_articulation:
-            self.add_fixed_base(name, prim, cfg, cfg["fixed_base"])
+            self.make_kinematic(name, prim, cfg, cfg["make_kinematic"])
         self.set_position_iteration(name, prim, cfg["solver_position_iteration_count"])
         self.set_velocity_iteration(name, prim, cfg["solver_velocity_iteration_count"])
         self.set_max_depenetration_velocity(name, prim, cfg["max_depenetration_velocity"])
@@ -354,7 +368,7 @@ class SimConfig():
         self.set_contact_offset(name, prim, cfg["contact_offset"])
         self.set_rest_offset(name, prim, cfg["rest_offset"])
 
-    def apply_articulation_settings(self, name, prim, cfg, force_articulation=False):
+    def apply_articulation_settings(self, name, prim, cfg):
         from pxr import UsdPhysics, PhysxSchema
 
         stage = omni.usd.get_context().get_stage()
@@ -372,10 +386,6 @@ class SimConfig():
 
             children_prims = prim_tmp.GetPrim().GetChildren()
             prims = prims + children_prims
-
-        if not is_articulation and force_articulation:
-            articulation_api = UsdPhysics.ArticulationRootAPI.Apply(prim)
-            physx_articulation_api = PhysxSchema.PhysxArticulationAPI.Apply(prim)
 
         # parse through all children prims
         prims = [prim]

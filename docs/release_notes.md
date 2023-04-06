@@ -1,6 +1,35 @@
 Release Notes
 =============
 
+2022.2.1.0 - March 16, 2023
+---------------------------
+
+Additions
+---------
+- Add FactoryTaskNutBoltPick example
+- Add Ant and Humanoid SAC training examples
+- Add multi-GPU support for training
+- Add utility scripts for launching Isaac Sim docker with OIGE
+- Add support for livestream through the Omniverse Streaming Client
+
+Changes
+-------
+- Change rigid body fixed_base option to make_kinematic, avoiding creation of unnecessary articulations
+- Update ShadowHand, Ingenuity, Quadcopter and Crazyflie marker objects to use kinematics
+- Update ShadowHand GPU buffer parameters
+- Disable PyTorch nvFuser for better performance
+- Enable viewport and replicator extensions dynamically to maintain order of extension startup
+- Separate app files for headless environments with rendering (requires Isaac Sim update)
+- Update rl-games to v1.6.0
+
+Fixes
+-----
+- Fix material property randomization at run-time, including friction and restitution (requires Isaac Sim update)
+- Fix a bug in contact reporting API where incorrect values were being reported (requires Isaac Sim update)
+- Enable render flag in Isaac Sim when enable_cameras is set to True
+- Add root pose and velocity reset to BallBalance environment
+
+
 2.0.0 - December 15, 2022
 -------------------------
 
