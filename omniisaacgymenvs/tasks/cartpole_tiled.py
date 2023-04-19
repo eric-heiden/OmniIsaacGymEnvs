@@ -1,6 +1,9 @@
 #for pytinyopengl3: pip install pytinydiffsim, use latest, at least version >= 0.5.0
 import pytinyopengl3 as g
 import math
+from numpngw import write_apng
+frames = []
+
 import torch
 import numpy as np
 use_cv2 = False
@@ -31,6 +34,7 @@ class CartpoleTest:
         self.use_matplot_lib = use_matplot_lib
         if enable_tiled and self.use_matplot_lib:
           import matplotlib.pyplot as plt
+          import matplotlib
           self.plt = plt
           self.plt.ion()
           img = np.random.rand(2000, 2000)
@@ -51,8 +55,8 @@ class CartpoleTest:
         else:
             raise NotImplementedError(f"Unsupported camera type {self.camera_type}")
 
-        self.camera_width = 120
-        self.camera_height = 120
+        self.camera_width = 64 
+        self.camera_height = 64 
         self.device = "cuda"
         if self.use_camera:
       
@@ -312,13 +316,13 @@ class CartpoleTest:
 
 
 if __name__ == '__main__':
-  cam = CartpoleTest(num_envs = 400, enable_tiled = False, use_matplot_lib = False)
+  cam = CartpoleTest(num_envs = 400, enable_tiled = True, use_matplot_lib = True)
 
   npz_data = np.load("cartpole_trans.npz")
   all_rb = npz_data['a']
   total_frames = all_rb.shape[0]
   frame = 0
-  while 1:
+  for f in range (10):
     rb = all_rb[frame].copy()
     frame += 1
     if frame == (total_frames-1):
@@ -327,4 +331,12 @@ if __name__ == '__main__':
     print("rb.shape=", rb.shape)
     cam.sync_transforms_cpu(rb)
     cam.update_observations(write_transforms=True)
+    ftensor = cam.ttensor.type(torch.float32)
+    np_img_arr = ftensor.cpu().numpy()
+    np_img_arr = np.reshape(np_img_arr, (cam.height, cam.width, 4))
+    np_img_arr = np.flipud(np_img_arr)
+    frame_img = np_img_arr[:,:,:3]
+    frame_img = np.array(frame_img * 255, dtype=np.uint8)
+    frames.append(frame_img)
 
+  write_apng("tiled_image.png", frames, delay=100)

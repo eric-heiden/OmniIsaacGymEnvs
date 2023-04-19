@@ -60,6 +60,9 @@ class FrankaCabinetTiledCameraTask(RLTask):
         self.action_penalty_scale = self._task_cfg["env"]["actionPenaltyScale"]
         self.finger_close_reward_scale = self._task_cfg["env"]["fingerCloseRewardScale"]
 
+        self.compressed_pos_data = []
+        self.compressed_orn_data = []
+
         self.distX_offset = 0.04
         self.dt = 1/60.
 
@@ -81,12 +84,17 @@ class FrankaCabinetTiledCameraTask(RLTask):
         self._frankas = FrankaView(prim_paths_expr="/World/envs/.*/franka", name="franka_view")
         self._cabinets = CabinetView(prim_paths_expr="/World/envs/.*/cabinet", name="cabinet_view")
 
+        #self._pole_star_view = RigidPrimView(prim_paths_expr="/World/envs/.*/Cartpole/*", name="pole_star_view", reset_xform_properties=False)
+        self._franka_links_view = RigidPrimView(prim_paths_expr="/World/envs/.*/franka/panda_link*", name="links_view", reset_xform_properties=False)
+        
+        
         scene.add(self._frankas)
         scene.add(self._frankas._hands)
         scene.add(self._frankas._lfingers)
         scene.add(self._frankas._rfingers)
         scene.add(self._cabinets)
         scene.add(self._cabinets._drawers)
+        scene.add(self._franka_links_view)
 
         if self.num_props > 0:
             self._props = RigidPrimView(prim_paths_expr="/World/envs/.*/prop/.*", name="prop_view", reset_xform_properties=False)
@@ -200,6 +208,12 @@ class FrankaCabinetTiledCameraTask(RLTask):
         drawer_pos, drawer_rot = self._cabinets._drawers.get_world_poses(clone=False)
         franka_dof_pos = self._frankas.get_joint_positions(clone=False)
         franka_dof_vel = self._frankas.get_joint_velocities(clone=False)
+        franka_links_pos, franka_links_orn = self._franka_links_view.get_world_poses(clone=False)
+        #print("franka_links_pos=",franka_links_pos)
+        #print("franka_links_pos.shape=",franka_links_pos.shape)
+        self.compressed_pos_data.append(franka_links_pos.cpu().numpy())
+        self.compressed_orn_data.append(franka_links_orn.cpu().numpy())
+        np.savez("franka_transforms.npz", self.compressed_pos_data, self.compressed_orn_data)
         self.cabinet_dof_pos = self._cabinets.get_joint_positions(clone=False)
         self.cabinet_dof_vel = self._cabinets.get_joint_velocities(clone=False)
         self.franka_dof_pos = franka_dof_pos
