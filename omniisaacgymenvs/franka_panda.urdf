@@ -8,7 +8,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="franka_description/meshes/visual/link0.obj"/>
+        <mesh filename="franka_description/meshes/visual/link0_new.obj"/>
       </geometry>
     </visual>
     <collision>
@@ -25,7 +25,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="franka_description/meshes/visual/link1.obj"/>
+        <mesh filename="franka_description/meshes/visual/link1_new.obj"/>
       </geometry>
     </visual>
     <collision>
@@ -50,7 +50,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="franka_description/meshes/visual/link2.obj"/>
+        <mesh filename="franka_description/meshes/visual/link2_new.obj"/>
       </geometry>
     </visual>
     <collision>
@@ -75,7 +75,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="franka_description/meshes/visual/link3.obj"/>
+        <mesh filename="franka_description/meshes/visual/link3_new.obj"/>
       </geometry>
     </visual>
     <collision>
@@ -100,7 +100,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="franka_description/meshes/visual/link4.obj"/>
+        <mesh filename="franka_description/meshes/visual/link4_new.obj"/>
       </geometry>
     </visual>
     <collision>
@@ -125,7 +125,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="franka_description/meshes/visual/link5.obj"/>
+        <mesh filename="franka_description/meshes/visual/link5_new.obj"/>
       </geometry>
     </visual>
     <collision>
@@ -150,7 +150,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="franka_description/meshes/visual/link6.obj"/>
+        <mesh filename="franka_description/meshes/visual/link6_new.obj"/>
       </geometry>
     </visual>
     <collision>
@@ -175,7 +175,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="franka_description/meshes/visual/link7.obj"/>
+        <mesh filename="franka_description/meshes/visual/link7_new.obj"/>
       </geometry>
     </visual>
     <collision>
@@ -218,7 +218,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="franka_description/meshes/visual/hand.obj"/>
+        <mesh filename="franka_description/meshes/visual/hand_new.obj"/>
       </geometry>
     </visual>
     <collision>
@@ -242,7 +242,7 @@
     </inertial>
     <visual>
       <geometry>
-        <mesh filename="franka_description/meshes/visual/finger.obj"/>
+        <mesh filename="franka_description/meshes/visual/finger_new.obj"/>
       </geometry>
     </visual>
     <collision>
@@ -267,7 +267,7 @@
     <visual>
       <origin rpy="0 0 3.14159265359" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="franka_description/meshes/visual/finger.obj"/>
+        <mesh filename="franka_description/meshes/visual/finger_new.obj"/>
       </geometry>
     </visual>
     <collision>
